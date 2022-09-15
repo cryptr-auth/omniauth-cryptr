@@ -152,23 +152,66 @@ module OmniAuth
       # @return hash - The decoded token, if there were no exceptions.
       # @see https://github.com/jwt/ruby-jwt
       def jwt_decode(jwt)
-        JWT.decode(jwt, nil, false, decode_opts('S256'))
+        tnt = JWT.decode(jwt, nil, false)[0]['tnt']
+
+        JWT.decode(jwt, nil, true, decode_opts('RS256', tnt)) do |header|
+          jwks_hash(tnt)[header['kid']]
+        end
       end
 
       # Get the JWT decode options. We disable the claim checks since we perform our claim validation logic
       # Docs: https://github.com/jwt/ruby-jwt
       # @return hash
-      def decode_opts(alg)
-        {
+      def decode_opts(alg, tnt)
+        opts = {
           algorithm:         alg,
+          iss:               issuer(tnt),
           verify_expiration: true,
           verify_iat:        true,
           verify_iss:        true,
           verify_aud:        true,
-          verify_jti:        true,
-          verify_subj:       true,
+          verify_sub:        true,
           verify_not_before: true
         }
+
+        opts.merge!({ aud: options.client_options[:audience] }) if options.client_options[:audience].present?
+        opts.merge!({ verify_jti: options.client_options[:verify_jti] }) if options.client_options[:verify_jti].present?
+        opts
+      end
+      
+      def jwks_hash(tnt)
+        uri = jwks_uri(tnt)
+        req = Net::HTTP::Get.new(uri.request_uri)
+
+        res = Net::HTTP.start(
+                uri.host, uri.port,
+                :use_ssl => uri.scheme == 'https'
+              ) do |https|
+          https.request(req)
+        end
+
+        jwks_raw = res.body
+        jwks_keys = Array(JSON.parse(jwks_raw)['keys'])
+
+        Hash[
+          jwks_keys
+          .map do |k|
+            [
+              k['kid'],
+              OpenSSL::X509::Certificate.new(
+                Base64.decode64(k['x5c'].first)
+              ).public_key
+            ]
+          end
+        ]
+      end
+    
+      def issuer(tnt)
+        "#{options.client_options.site}/t/#{tnt}"
+      end
+      
+      def jwks_uri(tnt)
+        URI("#{issuer(tnt)}/.well-known/jwks")
       end
     end
   end
