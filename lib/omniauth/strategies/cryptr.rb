@@ -19,7 +19,7 @@ module OmniAuth
           if idp_id
             session['omniauth.idp_id'] = idp_id
             session['omniauth.sign_type'] = 'sso'
-            "/enterprise/#{idp_id}/login"
+            '/'
           else
             tenant    = client_options.tenant
             locale    = request_params['locale'] || 'en'
