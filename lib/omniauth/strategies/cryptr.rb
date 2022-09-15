@@ -57,7 +57,7 @@ module OmniAuth
 
         client_id      = options.client_id
         client_options = options.client_options
-        tenant         = client_options.tenant
+        tenant         = request.params['organization_domain'] || client_options.tenant
 
         sign_type = session['omniauth.sign_type']
         nonce     = session['omniauth.nonce']
@@ -96,7 +96,7 @@ module OmniAuth
         if access_token.present? && on_logout_path?
           client_options = options.client_options
           site = client_options.site
-          tenant = client_options.tenant
+          tenant = JWT.decode(access_token, nil, false)[0]['tnt'] || client_options.tenant
           client_id = options.client_id
 
           request_params = {
