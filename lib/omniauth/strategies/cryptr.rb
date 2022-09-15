@@ -176,6 +176,7 @@ module OmniAuth
 
         opts.merge!({ aud: options.client_options[:audience] }) if options.client_options[:audience].present?
         opts.merge!({ verify_jti: options.client_options[:verify_jti] }) if options.client_options[:verify_jti].present?
+        opts
       end
       
       def jwks_hash(tnt)
