@@ -9,23 +9,21 @@ module OmniAuth
       option :pkce, true
 
       def request_call
-        request_params   = request.params
-        idp_id = request_params['idp_id']
-
         options.authorize_params[:state] = state = SecureRandom.hex(24)
+        request_params = request.params
+
+        sign_type = request_params['sign_type'] || 'signin'
+        session['omniauth.sign_type'] = sign_type
+
+        locale = request_params['locale'] || 'en'
+        session['omniauth.locale'] = locale
 
         client_options = options.client_options
         client_options[:authorize_url] =
-          if idp_id
-            session['omniauth.idp_id'] = idp_id
-            session['omniauth.sign_type'] = 'sso'
+          if sign_type == 'sso'
             '/'
           else
-            tenant    = client_options.tenant
-            locale    = request_params['locale'] || 'en'
-            sign_type = session['omniauth.sign_type'] = request_params['sign_type'] || 'signin'
-
-            "/t/#{tenant}/#{locale}/#{state}/#{sign_type}/new"
+            "/t/#{client_options.tenant}/#{locale}/#{state}/#{sign_type}/new"
           end
 
         super
@@ -43,6 +41,13 @@ module OmniAuth
                         .merge(options_for('authorize'))
                         .merge(pkce_authorize_params)
                         .merge({ nonce: nonce })
+
+        idp_ids = request.params['idp_ids']
+        if idp_ids.any?
+          params = params.merge({ idp_ids: idp_ids })
+        end
+
+        params = params.merge({ locale: session['omniauth.locale'] })
 
         session['omniauth.pkce.verifier'] = options.pkce_verifier if options.pkce
         session['omniauth.state']         = params[:state]
