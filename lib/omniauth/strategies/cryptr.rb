@@ -116,9 +116,11 @@ module OmniAuth
           if response.success?
             slo_code = JSON.parse(response.body)['slo_code']
 
+            aud = JWT.decode(access_token, nil, false)[0]['aud'] || request.base_url
+
             if slo_code
               session['omniauth.slo_url'] =
-                "#{site}/api/v1/tenants/#{tenant}/#{client_id}/oauth/token/slo-after-revoke-token?slo_code=#{slo_code}&target_url=#{'http://localhost:3000'}"
+                "#{site}/api/v1/tenants/#{tenant}/#{client_id}/oauth/token/slo-after-revoke-token?slo_code=#{slo_code}&target_url=#{aud}"
             end
           end
 
