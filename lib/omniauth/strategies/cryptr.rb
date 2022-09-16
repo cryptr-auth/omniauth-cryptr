@@ -43,7 +43,7 @@ module OmniAuth
                         .merge({ nonce: nonce })
 
         idp_ids = request.params['idp_ids']
-        if idp_ids.any?
+        if idp_ids&.any?
           params = params.merge({ idp_ids: idp_ids })
         end
 
