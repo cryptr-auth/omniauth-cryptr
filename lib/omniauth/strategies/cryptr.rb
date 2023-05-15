@@ -11,20 +11,11 @@ module OmniAuth
       def request_call
         options.authorize_params[:state] = state = SecureRandom.hex(24)
         request_params = request.params
-
-        sign_type = request_params['sign_type'] || 'signin'
-        session['omniauth.sign_type'] = sign_type
-
         locale = request_params['locale'] || 'en'
         session['omniauth.locale'] = locale
 
         client_options = options.client_options
-        client_options[:authorize_url] =
-          if sign_type == 'sso'
-            '/'
-          else
-            "/t/#{client_options.tenant}/#{locale}/#{state}/#{sign_type}/new"
-          end
+        client_options[:authorize_url] = '/'
 
         super
       end
@@ -42,12 +33,20 @@ module OmniAuth
                         .merge(pkce_authorize_params)
                         .merge({ nonce: nonce })
 
-        idp_ids = request.params['idp_ids']
-        if idp_ids&.any?
-          params = params.merge({ idp_ids: idp_ids })
+        email = request.params['email']
+        if email.present?
+          params = params.merge({ email: email })
         end
 
-        params = params.merge({ locale: session['omniauth.locale'] })
+        org_domain = request.params['org_domain']
+        if org_domain.present?
+          params = params.merge({ domain: org_domain, org_domain: org_domain })
+        end
+
+        params = params.merge({
+          locale: session['omniauth.locale'],
+          client_state: params[:state]
+        })
 
         session['omniauth.pkce.verifier'] = options.pkce_verifier if options.pkce
         session['omniauth.state']         = params[:state]
@@ -59,17 +58,12 @@ module OmniAuth
         request_params   = request.params
         state            = request_params['state']
         authorization_id = request_params['authorization_id']
+        request_id       = request_params['request_id']
+        client_options   = options.client_options
+        tenant           = request.params['organization_domain'] || client_options.tenant
+        nonce            = session['omniauth.nonce']
 
-        client_id      = options.client_id
-        client_options = options.client_options
-        tenant         = request.params['organization_domain'] || client_options.tenant
-
-        sign_type = session['omniauth.sign_type']
-        nonce     = session['omniauth.nonce']
-
-        client_options[:token_url] =
-          "/api/v1/tenants/#{tenant}/#{client_id}/#{state}/oauth/#{sign_type}/client/#{authorization_id}/token?nonce=#{nonce}" unless
-            state.nil? || authorization_id.nil? || tenant.nil? || client_id.nil?
+        client_options[:token_url] = "/org/#{tenant}/oauth2/token?nonce=#{nonce}&request_id=#{request_id}&client_state=#{state}" unless tenant.nil? || state.nil?
 
         super
       end
@@ -94,6 +88,14 @@ module OmniAuth
       extra { { raw_info: raw_info } }
 
       uid { raw_info['sub'] }
+
+      credentials do
+        hash = {"token" => access_token.token}
+        hash["refresh_token"] = access_token.refresh_token if access_token.expires? && access_token.refresh_token
+        hash["expires_at"] = access_token.expires_at if access_token.expires?
+        hash["expires"] = access_token.expires?
+        hash
+      end
 
       def other_phase
         access_token = request.params['token']
@@ -144,6 +146,7 @@ module OmniAuth
         return @raw_info if @raw_info
 
         if access_token['id_token']
+          session['omniauth.credentials'] = credentials
           claims, header = jwt_decode(access_token['id_token'])
           @raw_info = claims
         else
