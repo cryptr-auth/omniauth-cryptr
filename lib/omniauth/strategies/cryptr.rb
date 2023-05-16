@@ -60,10 +60,11 @@ module OmniAuth
         authorization_id = request_params['authorization_id']
         request_id       = request_params['request_id']
         client_options   = options.client_options
+        client_id        = options.client_id
         tenant           = request.params['organization_domain'] || client_options.tenant
         nonce            = session['omniauth.nonce']
 
-        client_options[:token_url] = "/org/#{tenant}/oauth2/token?nonce=#{nonce}&request_id=#{request_id}&client_state=#{state}" unless tenant.nil? || state.nil?
+        client_options[:token_url] = "/org/#{tenant}/oauth2/token?nonce=#{nonce}&request_id=#{request_id}&client_id=#{client_id}&authorization_id=#{authorization_id}&client_state=#{state}" unless tenant.nil? || client_id.nil? || authorization_id.nil? || state.nil?
 
         super
       end
