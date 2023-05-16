@@ -31,7 +31,7 @@ module OmniAuth
         params = options.authorize_params
                         .merge(options_for('authorize'))
                         .merge(pkce_authorize_params)
-                        .merge({ nonce: nonce })
+                        .merge({ client_id: options.client_id, nonce: nonce })
 
         email = request.params['email']
         if email.present?
